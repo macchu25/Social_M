@@ -1,107 +1,107 @@
-// import fs from 'fs';
-// import imagekit from '../configs/imagekit.js';
-// import Post from '../models/Post.js';
-// import User from '../models/User.js';
+import fs from 'fs';
+import imagekit from '../configs/imagekit.js';
+import Post from '../models/Post.js';
+import User from '../models/User.js';
 
 
-// // add post
-// export const addPost = async (req, res) => {
-//     try {
+// add post
+export const addPost = async (req, res) => {
+    try {
 
-//         const { userId } = req.auth()
-//         const { content, post_type } = req.body
-//         const images = req.files
+        const { userId } = req.auth()
+        const { content, post_type } = req.body
+        const images = req.files
 
-//         let image_urls = []
-//         if (images.length) {
-//             image_urls = await Promise.all(images.map(async (image) => {
+        let image_urls = []
+        if (images.length) {
+            image_urls = await Promise.all(images.map(async (image) => {
 
-//                 const fileBuffer = fs.readFileSync(image.path)
+                const fileBuffer = fs.readFileSync(image.path)
 
-//                 const response = await imagekit.upload({
-//                     file: fileBuffer,
-//                     fileName: image.originalname,
-//                     folder: 'posts'
-//                 })
+                const response = await imagekit.upload({
+                    file: fileBuffer,
+                    fileName: image.originalname,
+                    folder: 'posts'
+                })
 
-//                 const url = imagekit.url({
-//                     path: response.filePath,
-//                     transformation: [
-//                         { quality: 'auto' },
-//                         { format: 'webp' },
-//                         { width: '512' }
-//                     ]
-//                 })
+                const url = imagekit.url({
+                    path: response.filePath,
+                    transformation: [
+                        { quality: 'auto' },
+                        { format: 'webp' },
+                        { width: '512' }
+                    ]
+                })
 
-//                 return url
+                return url
 
-//             }))
-//         }
+            }))
+        }
 
-//         await Post.create({
-//             user: userId,
-//             content,
-//             image_urls,
-//             post_type
-//         })
+        await Post.create({
+            user: userId,
+            content,
+            image_urls,
+            post_type
+        })
 
-//         res.json({ success: true, message: "Post created successfully" });
+        res.json({ success: true, message: "Post created successfully" });
 
-//     } catch (error) {
-//         console.log(error);
-//         res.json({ success: false, message: error.message });
-//     }
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
 
-// }
+}
 
-// // get posts
-// export const getFeedPosts = async (req, res) => {
+// get posts
+export const getFeedPosts = async (req, res) => {
 
-//     try {
-//         const { userId } = req.auth()
-//         const user = await User.findById(userId)
+    try {
+        const { userId } = req.auth()
+        const user = await User.findById(userId)
 
-//         // user connections and followings
+        // user connections and followings
 
-//         const userIds = [userId, ...user.connections, ...user.following]
-//         const posts = await Post.find({ user: { $in: userIds } }).populate('user').sort({ createdAt: -1 })
+        const userIds = [userId, ...user.connections, ...user.following]
+        const posts = await Post.find({ user: { $in: userIds } }).populate('user').sort({ createdAt: -1 })
 
-//         res.json({ success: true, posts })
+        res.json({ success: true, posts })
 
-//     } catch (error) {
-//         console.log(error);
-//         res.json({ success: false, message: error.message });
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
 
-//     }
-
-
-// }
-
-// // like post and unlike
-
-// export const likePost = async (req, res) => {
-
-//     try {
-//         const { userId } = req.auth()
-//         const { postId } = req.body
-//         const post = await Post.findById(postId)
-//         if (post.likes_count.includes(userId)) {
-//             post.likes_count = post.likes_count.filter(user => user !== userId)
-//             await post.save()
-//             return res.json({ success: true, message: "Post unliked" })
-//         } else {
-//             post.likes_count.push(userId)
-//             await post.save()
-//             return res.json({ success: true, message: "Post liked" })
-//         }
+    }
 
 
-//     } catch (error) {
-//         console.log(error);
-//         res.json({ success: false, message: error.message });
+}
 
-//     }
+// like post and unlike
+
+export const likePost = async (req, res) => {
+
+    try {
+        const { userId } = req.auth()
+        const { postId } = req.body
+        const post = await Post.findById(postId)
+        if (post.likes_count.includes(userId)) {
+            post.likes_count = post.likes_count.filter(user => user !== userId)
+            await post.save()
+            return res.json({ success: true, message: "Post unliked" })
+        } else {
+            post.likes_count.push(userId)
+            await post.save()
+            return res.json({ success: true, message: "Post liked" })
+        }
 
 
-// }
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+
+    }
+
+
+}
 

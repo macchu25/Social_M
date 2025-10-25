@@ -1,14 +1,15 @@
 // connectionSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import api from '../../api/axios.js';
 
 // ✅ async thunk to fetch connections
 export const fetchConnection = createAsyncThunk(
     "connections/fetchConnection",
     async (token) => {
-        const res = await fetch("http://localhost:5000/api/connections", {
+        const { data } = await api.get('/api/user/connections', {
             headers: { Authorization: `Bearer ${token}` },
         });
-        return await res.json();
+        return data;
     }
 );
 

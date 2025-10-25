@@ -1,5 +1,5 @@
 import React from "react";
-import { assets, dummyUserData } from "../assets/assets";
+import { assets,  } from "../assets/assets";
 import { Link, useNavigate } from "react-router-dom";
 import MenuItems from "./MenuItems";
 import { CirclePlus, LogOut } from "lucide-react";
