@@ -63,126 +63,126 @@ const syncUserDeletion = inngest.createFunction(
 
 // inngest funtion to send reminder when a new connection request is added
 
-// const sendConnectionRequestReminder = inngest.createFunction(
+const sendConnectionRequestReminder = inngest.createFunction(
 
-//     { id: 'send-new-connection-request-reminder' },
-//     { event: 'app/connection-request' },
-//     async ({ event, step }) => {
-//         const { connectionId } = event.data;
-//         await step.run('send-connection-request-email', async () => {
-//             const connection = await Connection.findById(connectionId).populate('from_user_id to_user_id');
-//             const subject = " New connection request"
-//             const body = `
+    { id: 'send-new-connection-request-reminder' },
+    { event: 'app/connection-request' },
+    async ({ event, step }) => {
+        const { connectionId } = event.data;
+        await step.run('send-connection-request-email', async () => {
+            const connection = await Connection.findById(connectionId).populate('from_user_id to_user_id');
+            const subject = " New connection request"
+            const body = `
 
-//             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-//                 <h2>Hi ${connection.to_user_id.full_name},</h2>
-//                 <p>You have a new connection request from ${connection.from_user_id.full_name} - @${connection.from_user_id.username}</p>
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2>Hi ${connection.to_user_id.full_name},</h2>
+                <p>You have a new connection request from ${connection.from_user_id.full_name} - @${connection.from_user_id.username}</p>
 
-//                 <p>Click <a href="${process.env.FRONTEND_URL}/connections" style="color: #10b981;">here</a> to accept or reject the request.</p>
-//                 <br/>
-//                 <p>Thanks,<br/>PingUp - Stay Connected</p>
+                <p>Click <a href="${process.env.FRONTEND_URL}/connections" style="color: #10b981;">here</a> to accept or reject the request.</p>
+                <br/>
+                <p>Thanks,<br/>PingUp - Stay Connected</p>
 
-//             </div>
-//             `
+            </div>
+            `
 
-//             await sendEmail({
-//                 to: connection.to_user_id.email,
-//                 subject,
-//                 body
-//             });
-//         })
+            await sendEmail({
+                to: connection.to_user_id.email,
+                subject,
+                body
+            });
+        })
 
-//         const in24Hours = new Date(Date.now() + 24 * 60 * 60 * 1000);
-//         await step.sleepUntil('wait-for-24-hours', in24Hours)
-//         await step.run('send-connection-request-reminder', async () => {
+        const in24Hours = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await step.sleepUntil('wait-for-24-hours', in24Hours)
+        await step.run('send-connection-request-reminder', async () => {
 
-//             const connection = await Connection.findById(connectionId).populate('from_user_id to_user_id');
-//             if (connection.status === 'accepted') {
-//                 return { message: "Already accepted" };
+            const connection = await Connection.findById(connectionId).populate('from_user_id to_user_id');
+            if (connection.status === 'accepted') {
+                return { message: "Already accepted" };
 
-//             }
+            }
 
-//             const subject = "Reminder: Pending Connection Request";
-//             const body = `
+            const subject = "Reminder: Pending Connection Request";
+            const body = `
 
-//             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-//                 <h2>Hi ${connection.to_user_id.full_name},</h2>
-//                 <p>You have a new connection request from ${connection.from_user_id.full_name} - @${connection.from_user_id.username}</p>
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2>Hi ${connection.to_user_id.full_name},</h2>
+                <p>You have a new connection request from ${connection.from_user_id.full_name} - @${connection.from_user_id.username}</p>
 
-//                 <p>Click <a href="${process.env.FRONTEND_URL}/connections" style="color: #10b981;">here</a> to accept or reject the request.</p>
-//                 <br/>
-//                 <p>Thanks,<br/>PingUp - Stay Connected</p>
+                <p>Click <a href="${process.env.FRONTEND_URL}/connections" style="color: #10b981;">here</a> to accept or reject the request.</p>
+                <br/>
+                <p>Thanks,<br/>PingUp - Stay Connected</p>
 
-//             </div>
-//             `
-//             await sendEmail({
-//                 to: connection.to_user_id.email,
-//                 subject,
-//                 body
-//             });
+            </div>
+            `
+            await sendEmail({
+                to: connection.to_user_id.email,
+                subject,
+                body
+            });
 
-//             return { message: "Reminder sent" };
+            return { message: "Reminder sent" };
 
-//         })
+        })
 
-//     }
+    }
 
-// )
-
-
-
-// inngest function to delete story after 24 hours of creation
-// const deleteStory = inngest.createFunction(
-
-//     { id: "story-delete" },
-//     { event: "app/story.delete" },
-//     async ({ event, step }) => {
-//         const { storyId } = event.data
-//         const in24Hours = new Date(Date.now() + 24 * 60 * 60 * 1000)
-//         await step.sleepUntil('wait-for-24-hours', in24Hours)
-//         await step.run('delete-story', async () => {
-//             await Story.findByIdAndDelete(storyId)
-//             return { message: "Story deleted" }
-//         })
-//     }
-// )
-
-// const sendNotificationofUnseenMessages = inngest.createFunction(
-//     { id: "send-unseen-message-notification" },
-//     { cron: "TZ=America/New_York 0 9 * * * " }, // every day at 9 AM
-
-//     async ({ step }) => {
-//         const messages = await Message.find({ seen: false }).populate('to_user_id ')
-//         const unseenCount = {}
-//         messages.map(message => {
-//             unseenCount[message.to_user_id._id] = (unseenCount[message.to_user_id._id] || 0) + 1
-
-//         })
-
-//         for (const userId in unseenCount) {
-//             const user = await User.findById(userId)
-//             const subject = ` You have ${unseenCount[userId]} unseen messages `
-//             const body = `
-//             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-//                 <h2>Hi ${user.full_name},</h2>
-//                 <p>You have ${unseenCount[userId]} unseen messages waiting for you on PingUp.</p>
-//                 <p>Click <a href="${process.env.FRONTEND_URL}/messages" style="color: #10b981;">here</a> to view your messages and stay connected.</p>
-//                 <br/>
-//                 <p>Thanks,<br/>PingUp - Stay Connected</p>
-//             </div> `
-
-//             await sendEmail({
-//                 to: user.email,
-//                 subject,
-//                 body
-//             })
-//         }
-
-//         return { message: "Notifications sent" }
+)
 
 
-//     }
-// )
+
+
+const deleteStory = inngest.createFunction(
+
+    { id: "story-delete" },
+    { event: "app/story.delete" },
+    async ({ event, step }) => {
+        const { storyId } = event.data
+        const in24Hours = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        await step.sleepUntil('wait-for-24-hours', in24Hours)
+        await step.run('delete-story', async () => {
+            await Story.findByIdAndDelete(storyId)
+            return { message: "Story deleted" }
+        })
+    }
+)
+
+const sendNotificationofUnseenMessages = inngest.createFunction(
+    { id: "send-unseen-message-notification" },
+    { cron: "TZ=America/New_York 0 9 * * * " }, // every day at 9 AM
+
+    async ({ step }) => {
+        const messages = await Message.find({ seen: false }).populate('to_user_id ')
+        const unseenCount = {}
+        messages.map(message => {
+            unseenCount[message.to_user_id._id] = (unseenCount[message.to_user_id._id] || 0) + 1
+
+        })
+
+        for (const userId in unseenCount) {
+            const user = await User.findById(userId)
+            const subject = ` You have ${unseenCount[userId]} unseen messages `
+            const body = `
+            <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                <h2>Hi ${user.full_name},</h2>
+                <p>You have ${unseenCount[userId]} unseen messages waiting for you on PingUp.</p>
+                <p>Click <a href="${process.env.FRONTEND_URL}/messages" style="color: #10b981;">here</a> to view your messages and stay connected.</p>
+                <br/>
+                <p>Thanks,<br/>PingUp - Stay Connected</p>
+            </div> `
+
+            await sendEmail({
+                to: user.email,
+                subject,
+                body
+            })
+        }
+
+        return { message: "Notifications sent" }
+
+
+    }
+)
 
 
 
@@ -191,7 +191,7 @@ export const functions = [
     syncUserCreation,
     syncUserUpdation,
     syncUserDeletion,
-    // sendConnectionRequestReminder,
-    // deleteStory,
-    // sendNotificationofUnseenMessages,
+    sendConnectionRequestReminder,
+    deleteStory,
+    sendNotificationofUnseenMessages,
 ];
