@@ -209,3 +209,48 @@ export const deleteMessageForMe = async (req, res) => {
         res.json({ success: false, message: error.message })
     }
 }
+
+// delete entire conversation for me
+export const deleteConversationForMe = async (req, res) => {
+    try {
+        const { userId } = req.auth()
+        const { to_user_id } = req.body
+        await Message.updateMany({
+            $or: [
+                {from_user_id: userId, to_user_id},
+                {from_user_id: to_user_id, to_user_id: userId},
+            ]
+        }, { $addToSet: { hidden_for: userId } })
+        res.json({ success: true })
+    } catch (error) {
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// voice message (audio)
+export const sendVoiceMessage = async (req, res) => {
+    try {
+        const { userId } = req.auth()
+        const { to_user_id } = req.body
+        const audio = req.file
+        if (!audio) return res.json({ success: false, message: 'No audio' })
+        const fileBuffer = fs.readFileSync(audio.path)
+        const response = await imagekit.upload({ file: fileBuffer, fileName: audio.originalname })
+        const media_url = imagekit.url({ path: response.filePath })
+        const message = await Message.create({
+            from_user_id: userId,
+            to_user_id,
+            text: '',
+            message_type: 'audio',
+            media_url,
+        })
+        const populated = await Message.findById(message._id)
+        res.json({ success: true, message: populated })
+        // push to recipient via SSE
+        if (connections[to_user_id]) {
+            connections[to_user_id].write(`data: ${JSON.stringify(populated)}\n\n`)
+        }
+    } catch (error) {
+        res.json({ success: false, message: error.message })
+    }
+}

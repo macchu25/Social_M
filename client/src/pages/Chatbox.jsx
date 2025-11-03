@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ImageIcon, SendHorizonal, Check, CheckCheck, MoreVertical, X } from "lucide-react";
+import { ImageIcon, SendHorizonal, Check, CheckCheck, MoreVertical, X, Mic } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import api from "../api/axios";
@@ -19,6 +19,9 @@ const Chatbox = () => {
   const [menuIndex, setMenuIndex] = useState(null);
   const [showReactionsIndex, setShowReactionsIndex] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const [recording, setRecording] = useState(false);
 
   const loadUser = async () => {
     try {
@@ -212,13 +215,51 @@ const Chatbox = () => {
       }
     } catch {}
   };
+
+  const handleDeleteConversation = async () => {
+    try {
+      const token = await getToken();
+      await api.post('/api/message/delete-conversation', { to_user_id: userId }, { headers: { Authorization: `Bearer ${token}` } });
+      setMessages([]);
+    } catch {}
+  };
+
+  const startOrStopRecording = async () => {
+    try {
+      if (!recording) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mr = new MediaRecorder(stream);
+        const chunks = [];
+        mr.ondataavailable = (e) => chunks.push(e.data);
+        mr.onstop = async () => {
+          const blob = new Blob(chunks, { type: 'audio/webm' });
+          const file = new File([blob], 'voice.webm', { type: 'audio/webm' });
+          const token = await getToken();
+          const form = new FormData();
+          form.append('to_user_id', userId);
+          form.append('audio', file);
+          const { data } = await api.post('/api/message/send-voice', form, { headers: { Authorization: `Bearer ${token}` } });
+          if (data.success) {
+            setMessages(prev => [...prev, data.message]);
+          }
+        };
+        mr.start();
+        mediaRecorderRef.current = mr;
+        setRecording(true);
+      } else {
+        mediaRecorderRef.current?.stop();
+        setRecording(false);
+      }
+    } catch {}
+  };
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
   return (
     user && (
       <div className="flex flex-col h-screen">
-        <div className="flex items-center gap-2 p-2 md:px-10 xl:pl-24 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-300">
+        <div className="flex items-center justify-between gap-2 p-2 md:px-10 xl:pl-24 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-300">
+          <div className="flex items-center gap-2">
           <img
             src={user.profile_picture}
             className="size-8 rounded-full"
@@ -227,6 +268,15 @@ const Chatbox = () => {
           <div>
             <p className="font-medium">{user.full_name}</p>
             <p className="text-sm text-gray-500 -mt-1.5">@{user.username}</p>
+          </div>
+          </div>
+          <div className="relative" onMouseLeave={()=> setShowHeaderMenu(false)}>
+            <button onClick={()=> setShowHeaderMenu(prev=>!prev)} className="p-2 text-slate-500 hover:text-slate-700"><MoreVertical className="w-5 h-5" /></button>
+            {showHeaderMenu && (
+              <div className="absolute right-0 mt-1 bg-white border rounded-md shadow text-sm">
+                <button onClick={async ()=>{ await handleDeleteConversation(); setShowHeaderMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-slate-50">Xóa đoạn chat</button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -267,6 +317,9 @@ const Chatbox = () => {
                       )}
                       {message.message_type === 'image' && message.media_url && (
                         <img src={message.media_url} className="w-full max-w-sm rounded-lg mb-1" alt="image" />
+                      )}
+                      {message.message_type === 'audio' && message.media_url && (
+                        <audio src={message.media_url} controls className="mb-1" />
                       )}
                       {message.text && <p>{message.text}</p>}
                       {/* Reaction bubble */}
@@ -330,6 +383,9 @@ const Chatbox = () => {
               onChange={(e) => setText(e.target.value)}
               value={text}
             />
+            <button onClick={startOrStopRecording} className={`text-slate-400 hover:text-slate-700 ${recording ? 'text-red-500' : ''}`} title={recording ? 'Đang ghi...' : 'Ghi âm'}>
+              <Mic className="size-6" />
+            </button>
             <label htmlFor="image">
               {
                 image ? <img src={URL.createObjectURL(image)} className="w-8 h-8 rounded" alt="" /> : <ImageIcon className="size-7 text-gray-400 cursor-pointer" />
