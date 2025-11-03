@@ -1,7 +1,6 @@
 
 import fs from 'fs'
 import imagekit from '../configs/imagekit.js'
-import path from 'path'
 import Message from '../models/Messages.js'
 // create empty object to store server side event connections
 const connections = {}
@@ -235,9 +234,9 @@ export const sendVoiceMessage = async (req, res) => {
         const { to_user_id } = req.body
         const audio = req.file
         if (!audio) return res.json({ success: false, message: 'No audio' })
-        // use local file URL to avoid external 400s
-        const fileName = path.basename(audio.path)
-        const media_url = `${req.protocol}://${req.get('host')}/uploads/${fileName}`
+        const fileBuffer = fs.readFileSync(audio.path)
+        const response = await imagekit.upload({ file: fileBuffer, fileName: audio.originalname })
+        const media_url = imagekit.url({ path: response.filePath })
         const message = await Message.create({
             from_user_id: userId,
             to_user_id,
