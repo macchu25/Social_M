@@ -32,7 +32,10 @@ const connectionsSlice = createSlice({
             })
             .addCase(fetchConnection.fulfilled, (state, action) => {
                 state.status = "succeeded";
-                state.connections = action.payload; // adjust according to API response
+                state.connections = action.payload.connections || [];
+                state.followers = action.payload.followers || [];
+                state.following = action.payload.following || [];
+                state.pendingConnections = action.payload.pendingConnections || [];
             })
             .addCase(fetchConnection.rejected, (state) => {
                 state.status = "failed";

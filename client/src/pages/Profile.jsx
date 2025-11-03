@@ -18,7 +18,7 @@ const Profile = () => {
 
   const currentUser= useSelector((state)=> state.user.value);
   const { getToken } = useAuth();
-  const { profileId } = useParams();
+  const { id: profileId } = useParams();
   const [user, setUser] = useState(null);
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState("posts");

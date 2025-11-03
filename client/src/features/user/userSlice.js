@@ -4,6 +4,8 @@ import api from '../../api/axios.js'
 
 const initialState = {
   value: null,
+  discoveredUsers: [],
+  discoverLoading: false,
 }
 
 // 🧠 Lấy thông tin user từ token
@@ -28,6 +30,45 @@ export const updateUser = createAsyncThunk('user/update', async ({ token, userDa
   }
 })
 
+// 🔍 Tìm kiếm người dùng
+export const discoverUsers = createAsyncThunk('user/discoverUsers', async ({ token, input }) => {
+  const { data } = await api.post('/api/user/discover', { input }, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (data.success) {
+    return data.users
+  } else {
+    toast.error(data.message)
+    return []
+  }
+})
+
+// ➕ Follow user
+export const followUser = createAsyncThunk('user/follow', async ({ token, id }) => {
+  const { data } = await api.post('/api/user/follow', { id }, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!data.success) {
+    toast.error(data.message)
+    throw new Error(data.message)
+  }
+  toast.success(data.message)
+  return { id }
+})
+
+// ➖ Unfollow user
+export const unfollowUser = createAsyncThunk('user/unfollow', async ({ token, id }) => {
+  const { data } = await api.post('/api/user/unfollow', { id }, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!data.success) {
+    toast.error(data.message)
+    throw new Error(data.message)
+  }
+  toast.success(data.message)
+  return { id }
+})
+
 const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -39,6 +80,43 @@ const userSlice = createSlice({
       })
       .addCase(updateUser.fulfilled, (state, action) => {
         state.value = action.payload
+      })
+      .addCase(discoverUsers.pending, (state) => {
+        state.discoverLoading = true
+      })
+      .addCase(discoverUsers.fulfilled, (state, action) => {
+        state.discoveredUsers = action.payload
+        state.discoverLoading = false
+      })
+      .addCase(discoverUsers.rejected, (state) => {
+        state.discoverLoading = false
+      })
+      // follow
+      .addCase(followUser.fulfilled, (state, action) => {
+        const followedId = action.payload.id
+        if (state.value) {
+          const following = state.value.following || []
+          if (!following.includes(followedId)) {
+            state.value.following = [...following, followedId]
+          }
+        }
+        // bump followers count in discovered list if present
+        state.discoveredUsers = state.discoveredUsers.map(u =>
+          u._id === followedId
+            ? { ...u, followers: Array.isArray(u.followers) ? [...u.followers, state.value?._id].filter(Boolean) : [state.value?._id].filter(Boolean) }
+            : u
+        )
+      })
+      .addCase(unfollowUser.fulfilled, (state, action) => {
+        const unfollowedId = action.payload.id
+        if (state.value) {
+          state.value.following = (state.value.following || []).filter(id => id !== unfollowedId)
+        }
+        state.discoveredUsers = state.discoveredUsers.map(u =>
+          u._id === unfollowedId
+            ? { ...u, followers: Array.isArray(u.followers) ? u.followers.filter(id => id !== state.value?._id) : [] }
+            : u
+        )
       })
   },
 })

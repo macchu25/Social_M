@@ -1,13 +1,26 @@
 import React, { use } from "react";
 import { dummyUserData } from "../assets/assets";
 import { MapPin, MessageCircle, Plus, UserPlus } from "lucide-react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { useAuth } from "@clerk/clerk-react";
+import { followUser, unfollowUser } from "../features/user/userSlice";
 
 
 const UserCard = ({ user }) => {
   const currentUser = useSelector((state) => state.user.value);
+  const dispatch = useDispatch();
+  const { getToken } = useAuth();
 
-  const handleFollow = async () => {};
+  const handleFollow = async () => {
+    const token = await getToken();
+    if (!token) return;
+    const isFollowing = (currentUser?.following || []).includes(user._id);
+    if (isFollowing) {
+      dispatch(unfollowUser({ token, id: user._id }));
+    } else {
+      dispatch(followUser({ token, id: user._id }));
+    }
+  };
 
   const handleConnectionRequest = async () => {};
   return (
@@ -17,8 +30,8 @@ const UserCard = ({ user }) => {
     >
       <div className="text-center">
         <img
-          src={user.profile_picture}
-          alt={user.name}
+          src={user.profile_picture || '/default-avatar.png'}
+          alt={user.full_name || 'User'}
           className="rounded-full w-16 shadow-md mx-auto"
         />
         <p className="mt-4 font-semibold">{user.full_name} </p>
@@ -27,17 +40,19 @@ const UserCard = ({ user }) => {
         )}
         {user.bio && (
           <p className=" text-gray-600 mt-2 text-center text-sm px-4    ">
-            @{user.bio}
+            {user.bio}
           </p>
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-2 mt-4 text-xs text-gray-600">
+        <div className="flex items-center justify-center gap-2 mt-4 text-xs text-gray-600">
+        {user.location && (
+          <div className="flex items-center gap-1 border border-gray-300 rounded-full px-3 py-1">
+            <MapPin className="w-4 h-4" /> {user.location}
+          </div>
+        )}
         <div className="flex items-center gap-1 border border-gray-300 rounded-full px-3 py-1">
-          <MapPin className="w-4 h-4" /> {user.location}
-        </div>
-        <div className="flex items-center gap-1 border border-gray-300 rounded-full px-3 py-1">
-          <span>{user.followers.length}</span> Followers
+          <span>{user.followers?.length || 0}</span> Followers
         </div>
       </div>
 
@@ -45,11 +60,10 @@ const UserCard = ({ user }) => {
         {/* Follow button */}
         <button
           onClick={handleFollow}
-          disabled={currentUser?.following.includes(user._id)}
           className="w-full py-2 rounded-md flex justify-center items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 active:scale-95 transition text-white cursor-pointer"
         >
           <UserPlus className="w-4 h-4" />{" "}
-          {currentUser?.following.includes(user._id) ? "Following" : "Follow"}
+          {(currentUser?.following || []).includes(user._id) ? "Unfollow" : "Follow"}
         </button>
 
         {/* Connection requton/Message button */}

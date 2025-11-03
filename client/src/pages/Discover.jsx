@@ -1,24 +1,36 @@
 import React, { useState } from "react";
-import { dummyConnectionsData } from "../assets/assets";
 import { Search } from "lucide-react";
 import UserCard from "../components/UserCard";
 import Loading from "../components/Loading";
+import { useDispatch, useSelector } from "react-redux";
+import { discoverUsers } from "../features/user/userSlice";
+import { useAuth } from "@clerk/clerk-react";
 
 const Discover = () => {
   const [input, setInput] = useState("");
-  const [users, setUsers] = useState(dummyConnectionsData);
-  const [loading, setLoading] = useState("");
+  const dispatch = useDispatch();
+  const { discoveredUsers, discoverLoading } = useSelector((state) => state.user);
+  const { getToken } = useAuth();
 
   const handleSearch = async (e) => {
     if (e.key === "Enter") {
-      setUsers([]);
-      setLoading(true);
-      setTimeout(() => {
-        setUsers(dummyConnectionsData);
-        setLoading(false);
-      }, 1000);
+      const token = await getToken();
+      if (token) {
+        dispatch(discoverUsers({ token, input: input.trim() }));
+      }
     }
   };
+
+  // Load tất cả users khi component mount
+  React.useEffect(() => {
+    const loadAllUsers = async () => {
+      const token = await getToken();
+      if (token) {
+        dispatch(discoverUsers({ token, input: "" }));
+      }
+    };
+    loadAllUsers();
+  }, [dispatch, getToken]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -53,14 +65,18 @@ const Discover = () => {
         </div>
 
         <div className="flex flex-wrap gap-6">
-          {users.map((user) => (
+          {discoveredUsers.map((user) => (
             <UserCard user={user} key={user._id} />
           ))}
         </div>
 
-        {
-          loading && (<Loading height="60" />)
-        }
+        {discoverLoading && <Loading height="60" />}
+        
+        {!discoverLoading && discoveredUsers.length === 0 && input && (
+          <div className="text-center py-8">
+            <p className="text-slate-500">Không tìm thấy người dùng nào với từ khóa "{input}"</p>
+          </div>
+        )}
 
       </div>
     </div>

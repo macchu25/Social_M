@@ -114,21 +114,33 @@ export const discoverUsers = async (req, res) => {
     try {
         const { userId } = req.auth()
         const { input } = req.body
-        const allUsers = await User.find({
-            $or: [
-                { username: new RegExp(input, 'i') },
-                { email: new RegExp(input, 'i') },
-                { full_name: new RegExp(input, 'i') },
-                { location: new RegExp(input, 'i') },
-            ]
-        })
-
-        const filteredUsers = allUsers.filter((user) => user._id !== userId)
+        
+        console.log('Discover users request:', { userId, input })
+        
+        // Nếu không có input, trả về tất cả users (trừ user hiện tại)
+        let query = {}
+        if (input && input.trim()) {
+            query = {
+                $or: [
+                    { username: new RegExp(input, 'i') },
+                    { email: new RegExp(input, 'i') },
+                    { full_name: new RegExp(input, 'i') },
+                    { location: new RegExp(input, 'i') },
+                ]
+            }
+        }
+        
+        const allUsers = await User.find(query)
+        console.log('Found users:', allUsers.length)
+        
+        const filteredUsers = allUsers.filter((user) => user._id.toString() !== userId.toString())
+        console.log('Filtered users:', filteredUsers.length)
+        
         res.json({ success: true, users: filteredUsers })
 
 
     } catch (error) {
-        console.log(error)
+        console.log('Error in discoverUsers:', error)
         res.json({ success: false, message: error.message })
     }
 }
