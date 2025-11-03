@@ -116,6 +116,11 @@ const Chatbox = () => {
             setMessages(prev => prev.map(m => m._id === payload.messageId ? { ...m, revoked: true, text: 'This message was revoked', message_type: 'text', media_url: '' } : m));
             return;
           }
+          if (payload?.event === 'reaction') {
+            const msg = payload.message;
+            setMessages(prev => prev.map(m => m._id === msg._id ? msg : m));
+            return;
+          }
           // message event (default)
           const fromId = payload.from_user_id?._id || payload.from_user_id;
           const toId = payload.to_user_id?._id || payload.to_user_id;
@@ -285,7 +290,7 @@ const Chatbox = () => {
                         </div>
                       )}
                       {showReactionsIndex === index && (
-                        <div className="absolute -top-8 left-0 bg-white shadow rounded-full border px-2 py-1 text-base select-none">
+                        <div className="absolute -top-10 left-0 bg-white shadow rounded-full border px-2 py-1 text-base select-none flex items-center gap-1">
                           {['👍','❤️','😂','😮','😢'].map(e=> (
                             <button key={e} onClick={async ()=>{ await handleReact(message._id, e); setShowReactionsIndex(null); }} className="px-1 hover:scale-110 transition">{e}</button>
                           ))}

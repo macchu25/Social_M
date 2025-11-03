@@ -153,7 +153,18 @@ export const reactToMessage = async (req, res) => {
             message.reactions.push({ user_id: userId, type })
         }
         await message.save()
-        res.json({ success: true, message })
+        const populated = await Message.findById(message._id).populate('reply_to')
+        res.json({ success: true, message: populated })
+        // notify both participants via SSE
+        try {
+            const payload = { event: 'reaction', message: populated }
+            if (connections[message.to_user_id]) {
+                connections[message.to_user_id].write(`data: ${JSON.stringify(payload)}\n\n`)
+            }
+            if (connections[message.from_user_id]) {
+                connections[message.from_user_id].write(`data: ${JSON.stringify(payload)}\n\n`)
+            }
+        } catch {}
     } catch (error) {
         res.json({ success: false, message: error.message })
     }
