@@ -7,6 +7,10 @@ const messageSchema= new mongoose.Schema({
     message_type: {type: String, enum: ["text", "image", "video"], default: "text"},
     media_url: {type: String,},
     seen: {type: Boolean, default: false},
+    reactions: [{ user_id: { type: String }, type: { type: String } }],
+    hidden_for: [{ type: String }],
+    revoked: { type: Boolean, default: false },
+    reply_to: { type: String, ref: 'Message' },
 }, { timestamps: true })
 
 const Message = mongoose.model("Message", messageSchema);
