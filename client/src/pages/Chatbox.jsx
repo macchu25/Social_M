@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ImageIcon, SendHorizonal, Check, CheckCheck, MoreVertical, X, Mic } from "lucide-react";
+import { ImageIcon, SendHorizonal, Check, CheckCheck, MoreVertical, X, Mic, Phone } from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useAuth } from "@clerk/clerk-react";
 import api from "../api/axios";
@@ -20,8 +20,12 @@ const Chatbox = () => {
   const [showReactionsIndex, setShowReactionsIndex] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const headerMenuRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const [recording, setRecording] = useState(false);
+  const recordStreamRef = useRef(null);
+  const pcRef = useRef(null);
+  const [inCall, setInCall] = useState(false);
 
   const loadUser = async () => {
     try {
@@ -94,6 +98,16 @@ const Chatbox = () => {
   };
 
   useEffect(() => {
+    const onDocClick = (e) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
+        setShowHeaderMenu(false);
+      }
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, []);
+
+  useEffect(() => {
     loadUser();
     fetchMessages();
 
@@ -101,7 +115,7 @@ const Chatbox = () => {
     let es;
     if (currentUser?._id) {
       es = new EventSource(`${import.meta.env.VITE_BASEURL}/api/message/${currentUser._id}`);
-      es.onmessage = (event) => {
+      es.onmessage = async (event) => {
         try {
           const payload = JSON.parse(event.data);
           // seen event
@@ -122,6 +136,23 @@ const Chatbox = () => {
           if (payload?.event === 'reaction') {
             const msg = payload.message;
             setMessages(prev => prev.map(m => m._id === msg._id ? msg : m));
+            return;
+          }
+          if (payload?.event === 'call-offer') {
+            // basic prompt; can replace with modal later
+            if (confirm('Có cuộc gọi đến. Trả lời?')) {
+              acceptCall(payload.sdp)
+            }
+            return;
+          }
+          if (payload?.event === 'call-answer') {
+            if (pcRef.current) {
+              await pcRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp))
+            }
+            return;
+          }
+          if (payload?.event === 'call-ice') {
+            try { await pcRef.current?.addIceCandidate(new RTCIceCandidate(payload.candidate)) } catch {}
             return;
           }
           // message event (default)
@@ -227,31 +258,100 @@ const Chatbox = () => {
   const startOrStopRecording = async () => {
     try {
       if (!recording) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!navigator.mediaDevices?.getUserMedia) {
+          toast.error('Trình duyệt không hỗ trợ ghi âm');
+          return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((e)=>{ toast.error('Không truy cập được micro'); throw e; });
         const mr = new MediaRecorder(stream);
         const chunks = [];
         mr.ondataavailable = (e) => chunks.push(e.data);
         mr.onstop = async () => {
-          const blob = new Blob(chunks, { type: 'audio/webm' });
-          const file = new File([blob], 'voice.webm', { type: 'audio/webm' });
-          const token = await getToken();
-          const form = new FormData();
-          form.append('to_user_id', userId);
-          form.append('audio', file);
-          const { data } = await api.post('/api/message/send-voice', form, { headers: { Authorization: `Bearer ${token}` } });
-          if (data.success) {
-            setMessages(prev => [...prev, data.message]);
+          try {
+            const mime = mr.mimeType || 'audio/webm';
+            const ext = mime.includes('mp4') ? 'm4a' : 'webm';
+            const blob = new Blob(chunks, { type: mime });
+            const file = new File([blob], `voice.${ext}`, { type: mime });
+            const token = await getToken();
+            const form = new FormData();
+            form.append('to_user_id', userId);
+            form.append('audio', file);
+            const { data } = await api.post('/api/message/send-voice', form, { headers: { Authorization: `Bearer ${token}` } });
+            if (data.success) {
+              setMessages(prev => [...prev, data.message]);
+              toast.success('Đã gửi voice');
+            } else {
+              toast.error(data.message || 'Gửi voice thất bại');
+            }
+          } catch (err) {
+            toast.error(err.message);
+          } finally {
+            // cleanup tracks
+            recordStreamRef.current?.getTracks().forEach(t => t.stop());
+            recordStreamRef.current = null;
           }
         };
         mr.start();
         mediaRecorderRef.current = mr;
+        recordStreamRef.current = stream;
         setRecording(true);
+        toast.success('Đang ghi âm... nhấn lần nữa để gửi');
       } else {
         mediaRecorderRef.current?.stop();
         setRecording(false);
       }
     } catch {}
   };
+
+  const createPeer = () => {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+    pc.onicecandidate = async (e) => {
+      if (e.candidate) {
+        const token = await getToken();
+        await api.post('/api/message/call/ice', { to_user_id: userId, candidate: e.candidate }, { headers: { Authorization: `Bearer ${token}` } })
+      }
+    }
+    pc.ontrack = (e) => {
+      const audio = document.getElementById('remoteAudio')
+      if (audio) audio.srcObject = e.streams[0]
+    }
+    pcRef.current = pc
+    return pc
+  }
+
+  const startCall = async () => {
+    try {
+      const pc = createPeer();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(t => pc.addTrack(t, stream))
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      const token = await getToken();
+      await api.post('/api/message/call/offer', { to_user_id: userId, sdp: offer }, { headers: { Authorization: `Bearer ${token}` } })
+      setInCall(true)
+    } catch {}
+  }
+
+  const acceptCall = async (sdp) => {
+    try {
+      const pc = createPeer();
+      await pc.setRemoteDescription(new RTCSessionDescription(sdp))
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(t => pc.addTrack(t, stream))
+      const answer = await pc.createAnswer()
+      await pc.setLocalDescription(answer)
+      const token = await getToken();
+      await api.post('/api/message/call/answer', { to_user_id: userId, sdp: answer }, { headers: { Authorization: `Bearer ${token}` } })
+      setInCall(true)
+    } catch {}
+  }
+
+  const endCall = () => {
+    pcRef.current?.getSenders()?.forEach(s => s.track?.stop())
+    pcRef.current?.close();
+    pcRef.current = null
+    setInCall(false)
+  }
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -270,11 +370,12 @@ const Chatbox = () => {
             <p className="text-sm text-gray-500 -mt-1.5">@{user.username}</p>
           </div>
           </div>
-          <div className="relative" onMouseLeave={()=> setShowHeaderMenu(false)}>
+          <div className="relative" ref={headerMenuRef}>
             <button onClick={()=> setShowHeaderMenu(prev=>!prev)} className="p-2 text-slate-500 hover:text-slate-700"><MoreVertical className="w-5 h-5" /></button>
             {showHeaderMenu && (
               <div className="absolute right-0 mt-1 bg-white border rounded-md shadow text-sm">
                 <button onClick={async ()=>{ await handleDeleteConversation(); setShowHeaderMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-slate-50">Xóa đoạn chat</button>
+                <button onClick={async ()=>{ await startCall(); setShowHeaderMenu(false); }} className="block w-full text-left px-4 py-2 hover:bg-slate-50">Gọi thoại</button>
               </div>
             )}
           </div>
@@ -282,6 +383,13 @@ const Chatbox = () => {
 
         <div className="p-5 md:px-10 h-full overflow-y-scroll">
           <div className="space-y-4 max-w-4xl mx-auto">
+            {inCall && (
+              <div className="sticky top-2 z-10 flex items-center justify-between bg-white border rounded-md shadow px-3 py-2 max-w-sm mx-auto">
+                <div className="flex items-center gap-2 text-slate-700"><Phone className="w-4 h-4" /> Đang gọi...</div>
+                <button onClick={endCall} className="text-red-600 text-sm">Kết thúc</button>
+                <audio id="remoteAudio" autoPlay />
+              </div>
+            )}
             {(() => {
               const ordered = [...messages].toSorted((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
               let lastOutgoingIndex = -1;

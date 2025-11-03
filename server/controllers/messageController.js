@@ -254,3 +254,34 @@ export const sendVoiceMessage = async (req, res) => {
         res.json({ success: false, message: error.message })
     }
 }
+
+// WebRTC signaling relay
+export const callOffer = async (req, res) => {
+    try {
+        const { userId } = req.auth()
+        const { to_user_id, sdp } = req.body
+        const payload = { event: 'call-offer', from: userId, sdp }
+        if (connections[to_user_id]) connections[to_user_id].write(`data: ${JSON.stringify(payload)}\n\n`)
+        res.json({ success: true })
+    } catch (e) { res.json({ success: false, message: e.message }) }
+}
+
+export const callAnswer = async (req, res) => {
+    try {
+        const { userId } = req.auth()
+        const { to_user_id, sdp } = req.body
+        const payload = { event: 'call-answer', from: userId, sdp }
+        if (connections[to_user_id]) connections[to_user_id].write(`data: ${JSON.stringify(payload)}\n\n`)
+        res.json({ success: true })
+    } catch (e) { res.json({ success: false, message: e.message }) }
+}
+
+export const callIce = async (req, res) => {
+    try {
+        const { userId } = req.auth()
+        const { to_user_id, candidate } = req.body
+        const payload = { event: 'call-ice', from: userId, candidate }
+        if (connections[to_user_id]) connections[to_user_id].write(`data: ${JSON.stringify(payload)}\n\n`)
+        res.json({ success: true })
+    } catch (e) { res.json({ success: false, message: e.message }) }
+}
