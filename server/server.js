@@ -20,7 +20,7 @@ app.use(express.json())
 app.use(cors())
 app.use(clerkMiddleware()) //all request will be authenticated with Clerk
 
-
+//dsfd
 app.get('/', (req, res) => res.send("Server is running"))
 // serve uploaded files locally (voice, etc.)
 app.use('/uploads', express.static('uploads'))
