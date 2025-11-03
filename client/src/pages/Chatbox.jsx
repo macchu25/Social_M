@@ -24,6 +24,11 @@ const Chatbox = () => {
   const mediaRecorderRef = useRef(null);
   const [recording, setRecording] = useState(false);
   const recordStreamRef = useRef(null);
+  const recordChunksRef = useRef([]);
+  const uploadOnStopRef = useRef(false);
+  const recordStartRef = useRef(0);
+  const [recordElapsed, setRecordElapsed] = useState(0);
+  const recordTimerRef = useRef(null);
   const pcRef = useRef(null);
   const [inCall, setInCall] = useState(false);
 
@@ -263,14 +268,28 @@ const Chatbox = () => {
           return;
         }
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((e)=>{ toast.error('Không truy cập được micro'); throw e; });
-        const mr = new MediaRecorder(stream);
-        const chunks = [];
-        mr.ondataavailable = (e) => chunks.push(e.data);
+        const mimePref = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+        const mr = new MediaRecorder(stream, mimePref ? { mimeType: mimePref } : undefined);
+        recordChunksRef.current = [];
+        mr.ondataavailable = (e) => { if (e.data && e.data.size > 0) recordChunksRef.current.push(e.data) };
         mr.onstop = async () => {
+          try {
+            clearInterval(recordTimerRef.current); setRecordTimer(null);
+          } catch {}
+          const chunks = recordChunksRef.current;
+          // if user canceled, do not upload
+          if (!uploadOnStopRef.current) {
+            recordStreamRef.current?.getTracks().forEach(t => t.stop());
+            recordStreamRef.current = null;
+            recordChunksRef.current = [];
+            setRecordElapsed(0); setRecordStartTs(null);
+            return;
+          }
           try {
             const mime = mr.mimeType || 'audio/webm';
             const ext = mime.includes('mp4') ? 'm4a' : 'webm';
             const blob = new Blob(chunks, { type: mime });
+            if (blob.size === 0) { toast.error('Không có dữ liệu ghi âm'); return; }
             const file = new File([blob], `voice.${ext}`, { type: mime });
             const token = await getToken();
             const form = new FormData();
@@ -286,22 +305,42 @@ const Chatbox = () => {
           } catch (err) {
             toast.error(err.message);
           } finally {
-            // cleanup tracks
             recordStreamRef.current?.getTracks().forEach(t => t.stop());
             recordStreamRef.current = null;
+            recordChunksRef.current = [];
+            setRecordElapsed(0); setRecordStartTs(null);
           }
         };
-        mr.start();
+        mr.start(250);
         mediaRecorderRef.current = mr;
         recordStreamRef.current = stream;
         setRecording(true);
-        toast.success('Đang ghi âm... nhấn lần nữa để gửi');
+        recordStartRef.current = Date.now();
+        setRecordElapsed(0);
+        if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+        recordTimerRef.current = setInterval(()=> setRecordElapsed(Math.floor((Date.now()- recordStartRef.current)/1000)), 500);
       } else {
+        uploadOnStopRef.current = true;
         mediaRecorderRef.current?.stop();
         setRecording(false);
       }
     } catch {}
   };
+
+  const cancelRecording = () => {
+    uploadOnStopRef.current = false;
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+    setRecordElapsed(0);
+  }
+
+  const sendRecording = () => {
+    uploadOnStopRef.current = true;
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+    if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+  }
 
   const createPeer = () => {
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
@@ -480,6 +519,16 @@ const Chatbox = () => {
                 Đang trả lời: {replyTo.text || (replyTo.message_type === 'image' ? 'Ảnh' : 'Tin nhắn')}
               </div>
               <button onClick={()=>setReplyTo(null)} className="text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+            </div>
+          )}
+          {recording && (
+            <div className="w-full max-w-xl mx-auto mb-2 px-3 py-2 rounded-full bg-cyan-400 text-white flex items-center justify-between">
+              <button onClick={cancelRecording} className="px-2">✕</button>
+              <div className="flex-1 flex items-center gap-2">
+                <span className="w-3 h-3 bg-white rounded-sm"></span>
+              </div>
+              <span className="text-sm px-3">{String(Math.floor(recordElapsed/60)).padStart(2,'0')}:{String(recordElapsed%60).padStart(2,'0')}</span>
+              <button onClick={sendRecording} className="px-2">➤</button>
             </div>
           )}
           <div className="flex items-center gap-3 pl-5 p-1.5 bg-white w-full max-w-xl mx-auto border border-gray-200 shadow rounded-full mb-5">

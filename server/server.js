@@ -22,6 +22,8 @@ app.use(clerkMiddleware()) //all request will be authenticated with Clerk
 
 
 app.get('/', (req, res) => res.send("Server is running"))
+// serve uploaded files locally (voice, etc.)
+app.use('/uploads', express.static('uploads'))
 app.use('/api/inngest', serve({ client: inngest, functions }));
 
 app.use('/api/user', userRouter);
