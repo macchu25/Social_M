@@ -2,7 +2,7 @@ import multer from "multer";
 import fs from 'fs'
 import path from 'path'
 
-const uploadDir = path.resolve('uploads')
+const uploadDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads' : path.resolve('uploads')
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true })
 }
